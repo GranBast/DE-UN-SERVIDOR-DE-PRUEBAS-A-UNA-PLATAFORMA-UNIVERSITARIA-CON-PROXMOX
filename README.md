@@ -100,11 +100,64 @@ flowchart TD
     style P_PROD fill:#d1e7dd,stroke:#0f5132,stroke-width:1px
     style P_LABS fill:#cff4fc,stroke:#055160,stroke-width:1px
   ```
-4. Plan de Expansión de Hardware y PresupuestoPara solventar la saturación de almacenamiento y permitir el despliegue multitarea, se justifica el siguiente requerimiento técnico:ComponenteEspecificación TécnicaCantidadCosto ($USD)Costo (Bs.)Justificación TécnicaMódulo RAM32 GB DDR3 ECC Registered 1600MHz1$138.00Bs. 950.00Eleva la RAM a 64 GB, evitando el swapping en laboratorios simultáneos.SSD NVMe + PCIe2 TB Enterprise High-TBW + Adaptador PCIe x41$210.00Bs. 1,450.00Elimina el cuello de botella de local-lvm reemplazando los 200 GB saturados.Disco HDD 3.5"4 TB SATA3 7200RPM Enterprise (WD Red / Seagate)1$130.00Bs. 900.00Se instala en bahía caddy de la Z820 para backups VZDump e ISOs.TOTAL ESTIMADO——$478.00Bs. 3,300.00Inversión eficiente para extender la vida útil del servidor por 3 años.⚙️ 5. Conceptos y Operaciones Técnicas ClaveEl proyecto fundamenta el uso de las herramientas de Proxmox VE bajo 4 ejes (Necesidad, Aplicación, Comprobación y Limitaciones):KVM vs LXC: Uso de KVM para sistemas aislados/Windows y LXC para servicios Linux ligeros (ej. CT Alpine ~30 MB RAM).Clones Vinculados (Linked Clones): Despliegue de entornos estudiantiles en $<5$ segundos consumiendo $<10$ MB de espacio inicial desde la plantilla base VM 107.RBAC & Realms: Separación de administradores (pam realm) y docentes/alumnos (pve realm) restrictivos a su respectivo Resource Pool.Continuidad de Servicio:Producción: RTO $< 30$ min | RPO $= 24$ horas.Laboratorios: RTO $< 2$ horas | RPO $= 7$ días.📜 6. Guía de Estudio Rápida (Hito 3)¿Por qué Proxmox VE es un hipervisor Tipo 1 (Bare-Metal)?Respuesta: Se instala directamente sobre el hardware sin SO anfitrión comercial, utilizando un kernel Debian modificado con KVM/LXC para máximo rendimiento.Diferencia entre KVM y LXC:Respuesta: KVM virtualiza hardware completo con kernel propio; LXC comparte el kernel del host Proxmox, siendo más ligero pero limitado a Linux.Peligro del sobreaprovisionamiento en LVM-Thin:Respuesta: Al asignar más espacio virtual del disponible, si los datos reales llenan el 100% físico, el pool se congela y corrompe los sistemas de archivos.Snapshot vs Backup:Respuesta: Snapshot guarda el estado/delta en el mismo disco (reversión rápida); Backup es una copia comprimida independiente en otro medio físico.Ventaja de Linked Clones:Respuesta: Aprovisiona VMs en segundos reutilizando el disco base de una plantilla, ahorrando hasta un 90% de almacenamiento.Rol del Quorum en Corosync:Respuesta: Mantiene la mayoría de votos ($>50\%$) en un clúster para tomar decisiones de Alta Disponibilidad (HA) sin incurrir en Split-Brain. Requiere mínimo 3 nodos.Función de las VLANs (802.1Q):Respuesta: Etiqueta el tráfico en los conmutadores virtuales para aislar lógicamente la red a nivel de Capa 2 entre los entornos.Utilidad de la API REST:Respuesta: Permite automatizar por código (puerto 8006) la clonación masiva, el encendido/apagado y la purga de entornos temporales.¿Por qué no es posible la Migración en Vivo en 1 nodo?Respuesta: Requiere transferir el estado de CPU/RAM entre 2 o más hosts activos conectados a un almacenamiento compartido (SAN/NFS/Ceph).Realms PAM vs PVE:Respuesta: pam autentica contra el sistema operativo Linux (administradores); pve autentica internamente en Proxmox sin dar acceso al host (docentes/alumnos).📂 7. Estructura del Repositorio
-    style P_DEV fill:#fff3cd,stroke:#664d03,stroke-width:1px
-    style P_TEST fill:#f8d7da,stroke:#842029,stroke-width:1px
-    style NVME fill:#e2e3e5,stroke:#41464b,stroke-width:2px
-    style HDD fill:#e2e3e5,stroke:#41464b,stroke-width:2px
+## 💰 4. Plan de Expansión de Hardware y Presupuesto
+
+Para solventar la saturación de almacenamiento y permitir el despliegue multitarea, se justifica el siguiente requerimiento técnico:
+
+| Componente | Especificación Técnica | Cantidad | Costo ($USD) | Costo (Bs.) | Justificación Técnica |
+| :--- | :--- | :---: | :---: | :---: | :--- |
+| **Módulo RAM** | 32 GB DDR3 ECC Registered 1600MHz | 1 | $138.00 | Bs. 950.00 | Eleva la RAM a **64 GB**, evitando el swapping en laboratorios simultáneos. |
+| **SSD NVMe + PCIe** | 2 TB Enterprise High-TBW + Adaptador PCIe x4 | 1 | $210.00 | Bs. 1,450.00 | Elimina el cuello de botella de `local-lvm` reemplazando los 200 GB saturados. |
+| **Disco HDD 3.5"** | 4 TB SATA3 7200RPM Enterprise (WD Red / Seagate) | 1 | $130.00 | Bs. 900.00 | Se instala en bahía caddy de la Z820 para backups VZDump e ISOs. |
+| **TOTAL ESTIMADO** | — | — | **$478.00** | **Bs. 3,300.00** | Inversión eficiente para extender la vida útil del servidor por 3 años. |
+
+---
+
+## ⚙️ 5. Conceptos y Operaciones Técnicas Clave
+
+El proyecto fundamenta el uso de las herramientas de Proxmox VE bajo 4 ejes (*Necesidad, Aplicación, Comprobación y Limitaciones*):
+
+* **KVM vs LXC:** Uso de KVM para sistemas aislados/Windows y LXC para servicios Linux ligeros (ej. CT Alpine ~30 MB RAM).
+* **Clones Vinculados (Linked Clones):** Despliegue de entornos estudiantiles en $<5$ segundos consumiendo $<10$ MB de espacio inicial desde la plantilla base `VM 107`.
+* **RBAC & Realms:** Separación de administradores (`pam` realm) y docentes/alumnos (`pve` realm) restrictivos a su respectivo Resource Pool.
+* **Continuidad de Servicio:**
+  * **Producción:** RTO $< 30$ min | RPO $= 24$ horas.
+  * **Laboratorios:** RTO $< 2$ horas | RPO $= 7$ días.
+
+---
+
+## 📜 6. Guía de Estudio Rápida (Hito 3)
+
+<details>
+<summary><b>💬 Haz clic aquí para desplegar las 10 preguntas y respuestas clave de la evaluación</b></summary>
+
+1. **¿Por qué Proxmox VE es un hipervisor Tipo 1 (Bare-Metal)?**  
+   *Respuesta:* Se instala directamente sobre el hardware sin SO anfitrión comercial, utilizando un kernel Debian modificado con KVM/LXC para máximo rendimiento.
+2. **Diferencia entre KVM y LXC:**  
+   *Respuesta:* KVM virtualiza hardware completo con kernel propio; LXC comparte el kernel del host Proxmox, siendo más ligero pero limitado a Linux.
+3. **Peligro del sobreaprovisionamiento en LVM-Thin:**  
+   *Respuesta:* Al asignar más espacio virtual del disponible, si los datos reales llenan el 100% físico, el pool se congela y corrompe los sistemas de archivos.
+4. **Snapshot vs Backup:**  
+   *Respuesta:* Snapshot guarda el estado/delta en el mismo disco (reversión rápida); Backup es una copia comprimida independiente en otro medio físico.
+5. **Ventaja de Linked Clones:**  
+   *Respuesta:* Aprovisiona VMs en segundos reutilizando el disco base de una plantilla, ahorrando hasta un 90% de almacenamiento.
+6. **Rol del Quorum en Corosync:**  
+   *Respuesta:* Mantiene la mayoría de votos ($>50\%$) en un clúster para tomar decisiones de Alta Disponibilidad (HA) sin incurrir en *Split-Brain*. Requiere mínimo 3 nodos.
+7. **Función de las VLANs (802.1Q):**  
+   *Respuesta:* Etiqueta el tráfico en los conmutadores virtuales para aislar lógicamente la red a nivel de Capa 2 entre los entornos.
+8. **Utilidad de la API REST:**  
+   *Respuesta:* Permite automatizar por código (puerto 8006) la clonación masiva, el encendido/apagado y la purga de entornos temporales.
+9. **¿Por qué no es posible la Migración en Vivo en 1 nodo?**  
+   *Respuesta:* Requiere transferir el estado de CPU/RAM entre 2 o más hosts activos conectados a un almacenamiento compartido (SAN/NFS/Ceph).
+10. **Realms PAM vs PVE:**  
+    *Respuesta:* `pam` autentica contra el sistema operativo Linux (administradores); `pve` autentica internamente en Proxmox sin dar acceso al host (docentes/alumnos).
+</details>
+
+---
+
+## 📂 7. Estructura del Repositorio
+
+```text
 .
 ├── README.md                      # Documentación principal del repositorio
 ├── docs/
